@@ -54,9 +54,34 @@ function idLabel(id) {
   return id.display_name || id.username || id.email || null;
 }
 
+function getEffectiveTheme(th) {
+  const mode = th || "system";
+  if (mode === "system") {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return mode;
+}
+
+function applyTheme(th) {
+  if (!th) th = "system";
+  localStorage.setItem("zcode_theme", th);
+  document.documentElement.dataset.theme = getEffectiveTheme(th);
+  document.documentElement.dataset.themeSetting = th;
+}
+
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    const current = localStorage.getItem("zcode_theme") || "system";
+    if (current === "system") {
+      document.documentElement.dataset.theme = getEffectiveTheme("system");
+    }
+  });
+}
+
 async function refresh() {
   state = await invoke("get_state");
   if (state?.language) init(state.language);
+  if (state?.theme) applyTheme(state.theme);
 }
 
 function uiLocked() {
@@ -935,6 +960,13 @@ listen("state-changed", () => {
   refresh().then(() => { if (!uiLocked()) render(); }).catch(() => {});
 });
 
+listen("theme-changed", (e) => {
+  if (e.payload) {
+    applyTheme(e.payload);
+    if (state) state.theme = e.payload;
+  }
+});
+
 const SWEEP_PERIOD = 5 * 60 * 1000;
 const SWEEP_JITTER = 0.2;
 const TICK_MS = 8000;
@@ -981,7 +1013,13 @@ async function sweepTick() {
     enrollAccounts();
     sweepTick();
     setInterval(() => {
-      invoke("get_state").then((s) => { state = s; if (s?.language) init(s.language); enrollAccounts(); if (!uiLocked()) render(); }).catch(() => {});
+      invoke("get_state").then((s) => {
+        state = s;
+        if (s?.language) init(s.language);
+        if (s?.theme) applyTheme(s.theme);
+        enrollAccounts();
+        if (!uiLocked()) render();
+      }).catch(() => {});
     }, 5000);
     setInterval(sweepTick, TICK_MS);
     setTimeout(autoClaimTick, AUTO_CLAIM_FIRST_DELAY_MS);

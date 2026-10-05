@@ -142,6 +142,8 @@ pub struct Settings {
     pub language: Option<String>,
     #[serde(default)]
     pub auto_claim: Option<bool>,
+    #[serde(default)]
+    pub theme: Option<String>,
 }
 
 impl Settings {
@@ -149,6 +151,16 @@ impl Settings {
     pub fn close_to_tray(&self) -> bool { self.close_to_tray.unwrap_or(true) }
     pub fn hot_switch(&self) -> bool { self.hot_switch.unwrap_or(false) }
     pub fn auto_claim(&self) -> bool { self.auto_claim.unwrap_or(false) }
+    pub fn theme(&self) -> &str {
+        match self.theme.as_deref() {
+            Some("system") | Some("light") | Some("dark")
+            | Some("paper-ivory") | Some("cream-milk") | Some("spring-green")
+            | Some("mint-cyan") | Some("sky-azure") | Some("lilac-pastel")
+            | Some("royal-navy") => self.theme.as_deref().unwrap(),
+            Some("pure-black") => "dark",
+            _ => "system",
+        }
+    }
     pub fn auth_proxy(&self) -> Option<&str> {
         if self.auth_proxy_on.unwrap_or(false) {
             self.auth_proxy_url.as_deref().map(str::trim).filter(|s| !s.is_empty())
@@ -190,6 +202,7 @@ pub struct AppState {
     pub auth_proxy_on: bool,
     pub auth_proxy_url: Option<String>,
     pub language: String,
+    pub theme: String,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -1171,20 +1184,7 @@ fn adopt_virtual_device_mid(paths: &Paths, acc: &mut Account) -> Result<(), Stri
     if acc.virtual_device_mid.as_deref().map_or(false, |m| !m.trim().is_empty()) {
         return Ok(());
     }
-    let live_mid: Option<String> = fs::read_to_string(paths.live_telemetry())
-        .ok()
-        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
-        .and_then(|v| v.get("deviceMid").and_then(|m| m.as_str()).map(String::from))
-        .filter(|m| !m.trim().is_empty());
-    let taken = |m: &str| {
-        list_accounts(paths)
-            .map(|accs| accs.iter().any(|a| a.virtual_device_mid.as_deref() == Some(m)))
-            .unwrap_or(false)
-    };
-    let mid = match live_mid {
-        Some(m) if !taken(&m) => m,
-        _ => Uuid::new_v4().to_string(),
-    };
+    let mid = Uuid::new_v4().to_string();
     acc.virtual_device_mid = Some(mid);
     acc.updated_at = now_ts();
     save_account(paths, acc)
@@ -1521,5 +1521,6 @@ pub fn get_state(paths: &Paths) -> Result<AppState, String> {
         auth_proxy_on: settings.auth_proxy_on.unwrap_or(false),
         auth_proxy_url: settings.auth_proxy_url.clone(),
         language: crate::i18n::current().as_str().to_string(),
+        theme: settings.theme().to_string(),
     })
 }

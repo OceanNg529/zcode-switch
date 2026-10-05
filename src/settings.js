@@ -10,10 +10,51 @@ let autostart = false;
 let busy = false;
 let appVer = "";
 
+const MODES = [
+  { id: "system", labelKey: "s.themeSystem", descKey: "s.themeSystemDesc", icon: "monitor" },
+  { id: "light", labelKey: "s.themeLight", descKey: "s.themeLightDesc", icon: "sun" },
+  { id: "dark", labelKey: "s.themeDark", descKey: "s.themeDarkDesc", icon: "moon" },
+];
+
+const PALETTES = [
+  { id: "paper-ivory", labelKey: "s.themePaperIvory", color: "#a8703f", bg: "#faf3e9", dotBorder: "#b8aa94" },
+  { id: "cream-milk", labelKey: "s.themeCreamMilk", color: "#b22a2a", bg: "#f5e8d3", dotBorder: "#bfa37d" },
+  { id: "spring-green", labelKey: "s.themeSpringGreen", color: "#3c7c4c", bg: "#e0f4e6", dotBorder: "#98c7a3" },
+  { id: "mint-cyan", labelKey: "s.themeMintCyan", color: "#21858d", bg: "#ddf7f3", dotBorder: "#88cac1" },
+  { id: "sky-azure", labelKey: "s.themeSkyAzure", color: "#1387c0", bg: "#e2f0f9", dotBorder: "#95bedd" },
+  { id: "lilac-pastel", labelKey: "s.themeLilacPastel", color: "#bb5799", bg: "#f7e8f1", dotBorder: "#c99cb8" },
+  { id: "royal-navy", labelKey: "s.themeRoyalNavy", color: "#fac75e", bg: "#082046", dotBorder: "#275bb0" },
+];
+
+function getEffectiveTheme(th) {
+  const mode = th || "system";
+  if (mode === "system") {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return mode;
+}
+
+function applyTheme(th) {
+  if (!th) th = "system";
+  localStorage.setItem("zcode_theme", th);
+  document.documentElement.dataset.theme = getEffectiveTheme(th);
+  document.documentElement.dataset.themeSetting = th;
+}
+
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    const current = localStorage.getItem("zcode_theme") || "system";
+    if (current === "system") {
+      document.documentElement.dataset.theme = getEffectiveTheme("system");
+    }
+  });
+}
+
 async function refresh() {
   state = await invoke("get_state");
   autostart = await invoke("autostart_status").catch(() => false);
   if (state?.language) init(state.language);
+  if (state?.theme) applyTheme(state.theme);
 }
 
 async function guard(fn) {
@@ -39,6 +80,18 @@ const actions = {
     if (l === lang()) return;
     await guard(async () => {
       await invoke("set_language", { lang: l });
+      await refresh(); render();
+    });
+  },
+
+  async setTheme(th) {
+    if (!th || th === (state?.theme || localStorage.getItem("zcode_theme"))) return;
+    await guard(async () => {
+      applyTheme(th);
+      await invoke("set_theme", { theme: th });
+      const item = [...MODES, ...PALETTES].find(tItem => tItem.id === th);
+      const name = item ? t(item.labelKey) : th;
+      toast(t("s.themeToast", { name }));
       await refresh(); render();
     });
   },
@@ -160,6 +213,39 @@ const langSeg = (cur) => `
     </div>
   </div>`;
 
+const themeSeg = (cur) => `
+  <div class="theme-section">
+    <label style="margin-top:2px">${t("s.themeLabel")}</label>
+    <div class="theme-mode-grid" role="radiogroup" aria-label="${t("s.themeLabel")}">
+      ${MODES.map((m) => {
+        const active = cur === m.id;
+        return `
+          <button class="theme-mode-card${active ? " on" : ""}" role="radio" aria-checked="${active}" click="actions.setTheme('${m.id}')">
+            <div class="theme-mode-head">
+              <span class="theme-icon-wrap">${ic(m.icon, 16)}</span>
+              <span class="theme-mode-title">${t(m.labelKey)}</span>
+              <span class="theme-mode-check">${ic("check", 13)}</span>
+            </div>
+            <div class="theme-mode-desc">${t(m.descKey)}</div>
+          </button>`;
+      }).join("")}
+    </div>
+
+    <label style="margin-top:10px">${t("s.themeColorsLabel")}</label>
+    <div class="theme-grid" role="radiogroup" aria-label="${t("s.themeColorsLabel")}">
+      ${PALETTES.map((th) => {
+        const active = cur === th.id;
+        const borderStyle = th.dotBorder ? `border: 1.5px solid ${th.dotBorder};` : "";
+        const dotBg = `background: linear-gradient(135deg, ${th.bg} 50%, ${th.color} 50%);`;
+        return `
+          <button class="theme-card${active ? " on" : ""}" role="radio" aria-checked="${active}" click="actions.setTheme('${th.id}')">
+            <span class="theme-dot" style="${dotBg}${borderStyle}"></span>
+            <span class="theme-name">${t(th.labelKey)}</span>
+          </button>`;
+      }).join("")}
+    </div>
+  </div>`;
+
 function render() {
   if (!state) {
     $app.innerHTML = `<div class="loading">LOADING</div>`;
@@ -172,6 +258,7 @@ function render() {
       <div class="wordmark">Z·SWITCH <span class="ver">/ ${t("s.title")}</span></div>
     </header>
     <section class="settings open">
+      ${themeSeg(s.theme || "system")}
       ${langSeg(s.language || "zh")}
       <label>BEHAVIOR · ${t("s.behaviorLabel")}</label>
       ${toggle(autostart, "actions.toggleAutostart()", t("s.autostart"), t("s.autostartDesc"))}
@@ -208,6 +295,14 @@ installDelegation();
 
 listen("state-changed", () => {
   refresh().then(render).catch(() => {});
+});
+
+listen("theme-changed", (e) => {
+  if (e.payload) {
+    applyTheme(e.payload);
+    if (state) state.theme = e.payload;
+    render();
+  }
 });
 
 (async () => {

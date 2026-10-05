@@ -19,8 +19,7 @@
         "minHeight": 640,
         "resizable": true,
         "center": true,
-        "theme": "Dark",
-        "backgroundColor": "#0a0a0c",
+        "backgroundColor": "#ffffff",
         "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --no-proxy-server"
       }
     ],

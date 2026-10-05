@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Z·SWITCH</title>
     <style>
-      html, body { background: #0a0a0c; }
+      html, body { background: var(--bg, #faf3e9); }
       #splash {
         position: fixed; inset: 0; z-index: 999;
-        background: #0a0a0c;
+        background: var(--bg, #faf3e9);
         display: flex; align-items: center; justify-content: center;
         transition: opacity .18s ease;
       }
@@ -23,6 +23,17 @@
       }
     </style>
     <!-- 普通 link：dev 下 vite 会重写为模块注入（media 技巧会破坏该转换）；prod 为本地文件秒到 -->
+    <script>
+      try {
+        var t = localStorage.getItem("zcode_theme") || "system";
+        var eff = t;
+        if (t === "system") {
+          eff = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.dataset.theme = eff;
+        document.documentElement.dataset.themeSetting = t;
+      } catch (e) {}
+    </script>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body class="settings-win">

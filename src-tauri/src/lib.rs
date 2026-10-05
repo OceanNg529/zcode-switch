@@ -812,8 +812,6 @@ fn open_captcha_window(app: &AppHandle, auto: bool) -> Result<(), String> {
         tauri::WebviewUrl::App("captcha.html".into()),
     )
     .title(i18n::tr("title.captcha"))
-    .theme(Some(tauri::Theme::Dark))
-    .background_color(tauri::window::Color(10, 10, 12, 255))
     .inner_size(w, h)
     .min_inner_size(340.0, 280.0)
     .maximizable(false)
@@ -890,6 +888,28 @@ async fn set_language(app: AppHandle, lang: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn set_theme(app: AppHandle, theme: String) -> Result<(), String> {
+    {
+        let _guard = store_guard();
+        let paths = Paths::detect();
+        let mut s = load_settings(&paths);
+        s.theme = Some(theme.clone());
+        save_settings(&paths, &s)?;
+    }
+    let target_theme = match theme.as_str() {
+        "light" => Some(tauri::Theme::Light),
+        "dark" => Some(tauri::Theme::Dark),
+        _ => None,
+    };
+    for (_, win) in app.webview_windows() {
+        let _ = win.set_theme(target_theme);
+    }
+    let _ = app.emit("theme-changed", theme);
+    let _ = app.emit("state-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
 async fn reveal_main(app: AppHandle) -> Result<(), String> {
     let win = app.get_webview_window("main").ok_or_else(|| i18n::tr("err.main.missing"))?;
     win.show().map_err(|e| e.to_string())?;
@@ -913,8 +933,6 @@ async fn open_settings(app: AppHandle) -> Result<(), String> {
         tauri::WebviewUrl::App("settings.html".into()),
     )
     .title(i18n::tr("title.settings"))
-    .theme(Some(tauri::Theme::Dark))
-    .background_color(tauri::window::Color(10, 10, 12, 255))
     .inner_size(w, h)
     .min_inner_size(440.0, 540.0)
     .resizable(true)
@@ -1156,6 +1174,7 @@ pub fn run() {
             kill_zcode,
             set_behavior,
             set_language,
+            set_theme,
             autostart_status,
             autostart_set,
             export_pick_path,
@@ -1186,7 +1205,16 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            i18n::init_from_settings(&store::load_settings(&Paths::detect()));
+            let settings = store::load_settings(&Paths::detect());
+            i18n::init_from_settings(&settings);
+            if let Some(main_win) = app.get_webview_window("main") {
+                let target_theme = match settings.theme() {
+                    "light" => Some(tauri::Theme::Light),
+                    "dark" => Some(tauri::Theme::Dark),
+                    _ => None,
+                };
+                let _ = main_win.set_theme(target_theme);
+            }
             if let Ok(data_dir) = app.path().app_local_data_dir() {
                 flowlog::init(&data_dir);
             }

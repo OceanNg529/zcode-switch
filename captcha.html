@@ -5,8 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Z·SWITCH</title>
     <style>
-      html, body { background: #0a0a0c; }
+      html, body { background: var(--bg, #faf3e9); }
     </style>
+    <script>
+      try {
+        var t = localStorage.getItem("zcode_theme") || "system";
+        var eff = t;
+        if (t === "system") {
+          eff = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.dataset.theme = eff;
+        document.documentElement.dataset.themeSetting = t;
+      } catch (e) {}
+    </script>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body class="captcha-win">

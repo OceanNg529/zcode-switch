@@ -1,6 +1,6 @@
 
 import { invoke } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { init, t, lang, stripErr } from "./i18n.js";
 
 const SDK_URL = "https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js";
@@ -41,10 +41,34 @@ let submitted = false;
 let region = null;
 let tracelessTimer = 0;
 
+function getEffectiveTheme(th) {
+  if (th === "system") {
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  return th || "paper-ivory";
+}
+
+function applyTheme(th) {
+  if (!th) th = "system";
+  localStorage.setItem("zcode_theme", th);
+  document.documentElement.dataset.theme = getEffectiveTheme(th);
+  document.documentElement.dataset.themeSetting = th;
+}
+
+if (window.matchMedia) {
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    const current = localStorage.getItem("zcode_theme") || "system";
+    if (current === "system") {
+      document.documentElement.dataset.theme = getEffectiveTheme("system");
+    }
+  });
+}
+
 async function run() {
   try {
     const st = await invoke("get_state");
     if (st?.language) init(st.language);
+    if (st?.theme) applyTheme(st.theme);
   } catch { }
   document.title = t("c.title");
   $btn.textContent = t("c.btn");
@@ -128,6 +152,10 @@ async function run() {
 
 $btn.addEventListener("click", () => {
   if (!$btn.hidden) status(t("c.inPopup"));
+});
+
+listen("theme-changed", (e) => {
+  if (e.payload) applyTheme(e.payload);
 });
 
 run();
