@@ -10,6 +10,17 @@ document.addEventListener("keydown", (e) => {
   if (e.ctrlKey && ["u", "s"].includes(e.key.toLowerCase())) e.preventDefault();
 });
 
+// 全局拦截鼠标滚轮与触控板的水平滑动位移（彻底阻止 macOS WebKit 左右晃动与橡皮筋，保留垂直滚动）
+window.addEventListener(
+  "wheel",
+  (e) => {
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 0) {
+      e.preventDefault();
+    }
+  },
+  { passive: false }
+);
+
 export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
