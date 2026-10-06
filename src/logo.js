@@ -39,70 +39,73 @@ export function renderLogo(logoKey, size = 20, cls = "") {
  */
 export function processMacAppIcon(dataUrl) {
   return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
-      const cardSize = 824;
-      const cornerRadius = 185;
-
-      // 1. 离屏绘制 824x824 标准圆角卡片
-      const offscreen = document.createElement("canvas");
-      offscreen.width = cardSize;
-      offscreen.height = cardSize;
-      const offCtx = offscreen.getContext("2d");
-      if (!offCtx) return resolve(dataUrl);
-
-      offCtx.save();
-      offCtx.beginPath();
-      if (typeof offCtx.roundRect === "function") {
-        offCtx.roundRect(0, 0, cardSize, cardSize, cornerRadius);
-      } else {
-        const r = cornerRadius;
-        offCtx.moveTo(r, 0);
-        offCtx.arcTo(cardSize, 0, cardSize, cardSize, r);
-        offCtx.arcTo(cardSize, cardSize, 0, cardSize, r);
-        offCtx.arcTo(0, cardSize, 0, 0, r);
-        offCtx.arcTo(0, 0, cardSize, 0, r);
-        offCtx.closePath();
+    try {
+      const img = new Image();
+      // 只有非 data: URL 才设置 crossOrigin，data URL 设置会导致 WebKit 阻止访问或加载失败
+      if (typeof dataUrl === "string" && !dataUrl.startsWith("data:")) {
+        img.crossOrigin = "anonymous";
       }
-      offCtx.clip();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = 1024;
+          canvas.height = 1024;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(dataUrl);
 
-      const aspectImg = img.width / img.height;
-      let drawW = cardSize;
-      let drawH = cardSize;
-      let drawX = 0;
-      let drawY = 0;
-      if (aspectImg > 1) {
-        drawW = cardSize * aspectImg;
-        drawX = -(drawW - cardSize) / 2;
-      } else {
-        drawH = cardSize / aspectImg;
-        drawY = -(drawH - cardSize) / 2;
-      }
-      offCtx.drawImage(img, drawX, drawY, drawW, drawH);
-      offCtx.restore();
+          // Apple 官方标准规范：1024 画布，824x824 主体居中，185px 标准圆角
+          const size = 824;
+          const x = 100;
+          const y = 100;
+          const r = 185;
 
-      // 2. 绘制到 1024x1024 画布，带 Apple 官方环境阴影
-      const canvas = document.createElement("canvas");
-      canvas.width = 1024;
-      canvas.height = 1024;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return resolve(dataUrl);
+          ctx.clearRect(0, 0, 1024, 1024);
 
-      ctx.clearRect(0, 0, 1024, 1024);
-      ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.24)";
-      ctx.shadowBlur = 24;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 12;
+          // 绘制 macOS 标准圆角并裁剪
+          ctx.save();
+          ctx.beginPath();
+          if (typeof ctx.roundRect === "function") {
+            ctx.roundRect(x, y, size, size, r);
+          } else {
+            ctx.moveTo(x + r, y);
+            ctx.arcTo(x + size, y, x + size, y + size, r);
+            ctx.arcTo(x + size, y + size, x, y + size, r);
+            ctx.arcTo(x, y + size, x, y, r);
+            ctx.arcTo(x, y, x + size, y, r);
+            ctx.closePath();
+          }
+          ctx.clip();
 
-      const origin = 100; // (1024 - 824) / 2 = 100
-      ctx.drawImage(offscreen, origin, origin, cardSize, cardSize);
-      ctx.restore();
+          const aspectImg = img.width / img.height;
+          let drawW = size;
+          let drawH = size;
+          let drawX = x;
+          let drawY = y;
+          if (aspectImg > 1) {
+            drawW = size * aspectImg;
+            drawX = x - (drawW - size) / 2;
+          } else {
+            drawH = size / aspectImg;
+            drawY = y - (drawH - size) / 2;
+          }
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
+          ctx.restore();
 
-      resolve(canvas.toDataURL("image/png"));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
+          const result = canvas.toDataURL("image/png");
+          resolve(result || dataUrl);
+        } catch (err) {
+          console.warn("processMacAppIcon canvas process error:", err);
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = (err) => {
+        console.warn("processMacAppIcon img load error:", err);
+        resolve(dataUrl);
+      };
+      img.src = dataUrl;
+    } catch (e) {
+      console.warn("processMacAppIcon top level error:", e);
+      resolve(dataUrl);
+    }
   });
 }

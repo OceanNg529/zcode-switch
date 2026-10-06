@@ -101,11 +101,18 @@ const actions = {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/png,image/jpeg,image/webp,image/svg+xml";
+    input.style.position = "fixed";
+    input.style.left = "-9999px";
+    input.style.top = "-9999px";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+
     input.onchange = async () => {
       const file = input.files?.[0];
+      input.remove();
       if (!file) return;
-      if (file.size > 2 * 1024 * 1024) {
-        toast("图片大小请小于 2MB", "err");
+      if (file.size > 5 * 1024 * 1024) {
+        toast("图片大小请小于 5MB", "err");
         return;
       }
       const reader = new FileReader();
@@ -123,8 +130,16 @@ const actions = {
           });
         }
       };
+      reader.onerror = () => {
+        toast("读取图片失败", "err");
+      };
       reader.readAsDataURL(file);
     };
+
+    input.oncancel = () => {
+      input.remove();
+    };
+
     input.click();
   },
 
