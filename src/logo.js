@@ -47,10 +47,10 @@ export function processMacAppIcon(dataUrl) {
       const ctx = canvas.getContext("2d");
       if (!ctx) return resolve(dataUrl);
 
-      const size = 824;
-      const x = (1024 - size) / 2;
-      const y = (1024 - size) / 2;
-      const r = Math.round(size * 0.224); // 约 185px
+      const size = 1024;
+      const x = 0;
+      const y = 0;
+      const r = Math.round(size * 0.224); // 约 229px
 
       ctx.clearRect(0, 0, 1024, 1024);
 
