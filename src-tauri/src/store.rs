@@ -144,6 +144,8 @@ pub struct Settings {
     pub auto_claim: Option<bool>,
     #[serde(default)]
     pub theme: Option<String>,
+    #[serde(default)]
+    pub app_logo: Option<String>,
 }
 
 impl Settings {
@@ -151,6 +153,7 @@ impl Settings {
     pub fn close_to_tray(&self) -> bool { self.close_to_tray.unwrap_or(true) }
     pub fn hot_switch(&self) -> bool { self.hot_switch.unwrap_or(false) }
     pub fn auto_claim(&self) -> bool { self.auto_claim.unwrap_or(false) }
+    pub fn app_logo(&self) -> &str { self.app_logo.as_deref().unwrap_or("default") }
     pub fn theme(&self) -> &str {
         match self.theme.as_deref() {
             Some("system") | Some("light") | Some("dark")
@@ -203,6 +206,7 @@ pub struct AppState {
     pub auth_proxy_url: Option<String>,
     pub language: String,
     pub theme: String,
+    pub app_logo: String,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -1522,5 +1526,6 @@ pub fn get_state(paths: &Paths) -> Result<AppState, String> {
         auth_proxy_url: settings.auth_proxy_url.clone(),
         language: crate::i18n::current().as_str().to_string(),
         theme: settings.theme().to_string(),
+        app_logo: settings.app_logo().to_string(),
     })
 }

@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { esc, toast, openPwModal, installDelegation, dismissSplash } from "./ui.js";
 import { ic } from "./icons.js";
+import { LOGO_PRESETS, renderLogo } from "./logo.js";
 import { init, t, lang, stripErr } from "./i18n.js";
 
 const $app = document.getElementById("app");
@@ -92,6 +93,52 @@ const actions = {
       const item = [...MODES, ...PALETTES].find(tItem => tItem.id === th);
       const name = item ? t(item.labelKey) : th;
       toast(t("s.themeToast", { name }));
+      await refresh(); render();
+    });
+  },
+
+  async setLogo(id) {
+    if (!id || id === state?.app_logo) return;
+    await guard(async () => {
+      await invoke("set_app_logo", { logo: id });
+      const item = LOGO_PRESETS.find(p => p.id === id);
+      const name = item ? (lang() === "zh" ? item.nameZh : item.nameEn) : id;
+      toast(t("s.logoToast", { name }));
+      await refresh(); render();
+    });
+  },
+
+  async uploadLogo() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/webp,image/svg+xml";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        toast("图片大小请小于 2MB", "err");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const dataUrl = reader.result;
+        if (typeof dataUrl === "string") {
+          await guard(async () => {
+            await invoke("set_app_logo", { logo: dataUrl });
+            toast(t("s.logoUploadToast"));
+            await refresh(); render();
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  },
+
+  async resetLogo() {
+    await guard(async () => {
+      await invoke("set_app_logo", { logo: "default" });
+      toast(t("s.logoResetToast"));
       await refresh(); render();
     });
   },
@@ -246,6 +293,46 @@ const themeSeg = (cur) => `
     </div>
   </div>`;
 
+const logoSeg = (curLogo) => {
+  const isCustom = curLogo && (curLogo.startsWith("data:") || curLogo.startsWith("http") || curLogo.startsWith("blob:"));
+  return `
+    <div class="theme-section logo-section">
+      <label style="margin-top:10px">${t("s.logoLabel")}</label>
+      <div class="logo-grid" role="radiogroup" aria-label="${t("s.logoLabel")}">
+        ${LOGO_PRESETS.map((p) => {
+          const active = !isCustom && (curLogo === p.id || (!curLogo && p.id === "default"));
+          const name = lang() === "zh" ? p.nameZh : p.nameEn;
+          const desc = lang() === "zh" ? p.descZh : p.descEn;
+          return `
+            <button class="logo-card${active ? " on" : ""}" role="radio" aria-checked="${active}" click="actions.setLogo('${p.id}')">
+              <span class="logo-check">${ic("check", 12)}</span>
+              <div class="logo-card-icon">${p.render(28)}</div>
+              <div class="logo-card-title">${name}</div>
+              <div class="logo-card-desc">${desc}</div>
+            </button>`;
+        }).join("")}
+      </div>
+
+      <div class="logo-custom-panel${isCustom ? " is-active" : ""}">
+        <div class="logo-custom-left">
+          <div class="logo-custom-preview">
+            ${isCustom
+              ? `<img src="${curLogo}" alt="Custom Logo" />`
+              : renderLogo("default", 24)}
+          </div>
+          <div class="logo-custom-text">
+            <div class="title">${t("s.logoCustomTitle")}</div>
+            <div class="desc">${t("s.logoCustomDesc")}</div>
+          </div>
+        </div>
+        <div class="logo-custom-actions">
+          <button class="btn-ghost" click="actions.uploadLogo()">${t("s.logoUploadBtn")}</button>
+          ${isCustom ? `<button class="btn-ghost" click="actions.resetLogo()">${t("s.logoResetBtn")}</button>` : ""}
+        </div>
+      </div>
+    </div>`;
+};
+
 function render() {
   if (!state) {
     $app.innerHTML = `<div class="loading">LOADING</div>`;
@@ -255,10 +342,14 @@ function render() {
   document.title = `Z·SWITCH ${t("s.title")}`;
   $app.innerHTML = `
     <header class="topbar">
-      <div class="wordmark">Z·SWITCH <span class="ver">/ ${t("s.title")}</span></div>
+      <div class="brand-group">
+        <div class="app-logo-badge">${renderLogo(s.app_logo, 20)}</div>
+        <div class="wordmark">Z·SWITCH <span class="ver">/ ${t("s.title")}</span></div>
+      </div>
     </header>
     <section class="settings open">
       ${themeSeg(s.theme || "system")}
+      ${logoSeg(s.app_logo || "default")}
       ${langSeg(s.language || "zh")}
       <label>BEHAVIOR · ${t("s.behaviorLabel")}</label>
       ${toggle(autostart, "actions.toggleAutostart()", t("s.autostart"), t("s.autostartDesc"))}
@@ -301,6 +392,13 @@ listen("theme-changed", (e) => {
   if (e.payload) {
     applyTheme(e.payload);
     if (state) state.theme = e.payload;
+    render();
+  }
+});
+
+listen("logo-changed", (e) => {
+  if (state && e.payload) {
+    state.app_logo = e.payload;
     render();
   }
 });

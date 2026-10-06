@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { esc, toast, openPwModal, openConfirmModal, openProviderModal, installDelegation, dismissSplash } from "./ui.js";
 import { ic } from "./icons.js";
+import { renderLogo } from "./logo.js";
 import { init, t, has, lang, localeTag, stripErr } from "./i18n.js";
 
 const $app = document.getElementById("app");
@@ -838,7 +839,10 @@ function render() {
 
   $app.innerHTML = `
     <header class="topbar">
-      <div class="wordmark">Z·SWITCH${appVer ? ` <span class="ver">v${esc(appVer)}</span>` : ""}</div>
+      <div class="brand-group">
+        <div class="app-logo-badge">${renderLogo(s.app_logo, 22)}</div>
+        <div class="wordmark">Z·SWITCH${appVer ? ` <span class="ver">v${esc(appVer)}</span>` : ""}</div>
+      </div>
       <div class="top-status${unsaved ? " unsaved" : ""}">
         <span class="status-dot ${dotCls}"></span>
         <span class="status-text">${esc(statusText)}</span>
@@ -964,6 +968,13 @@ listen("theme-changed", (e) => {
   if (e.payload) {
     applyTheme(e.payload);
     if (state) state.theme = e.payload;
+  }
+});
+
+listen("logo-changed", (e) => {
+  if (state && e.payload) {
+    state.app_logo = e.payload;
+    if (!uiLocked()) render();
   }
 });
 

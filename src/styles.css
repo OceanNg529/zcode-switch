@@ -277,11 +277,25 @@ input:focus-visible,
 }
 
 .topbar {
-  padding: 18px 18px 14px;
+  padding: 16px 18px 14px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--hairline-soft);
+}
+.brand-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-group .app-logo-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .18s ease;
+}
+.brand-group .app-logo-badge:hover {
+  transform: scale(1.08) rotate(3deg);
 }
 .wordmark {
   font-family: var(--mono);
@@ -1381,3 +1395,130 @@ input:focus-visible,
 .pv-item:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .pv-item .pv-arrow { color: var(--ink-mute); font-family: var(--mono); }
 .pv-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
+
+/* ==========================================================================
+   Logo 设置与展示组件
+   ========================================================================== */
+.logo-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.logo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.logo-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 12px 10px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all .16s ease;
+  user-select: none;
+}
+.logo-card:hover {
+  background: var(--panel-3);
+  border-color: var(--amber);
+  transform: translateY(-1px);
+}
+.logo-card.on {
+  border-color: var(--amber);
+  background: rgba(168, 112, 63, .09);
+  box-shadow: 0 0 0 1px var(--amber);
+}
+.logo-card-icon {
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .2s ease;
+}
+.logo-card:hover .logo-card-icon {
+  transform: scale(1.12);
+}
+.logo-card-title {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.logo-card-desc {
+  font-size: 10px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+  line-height: 1.2;
+}
+.logo-card .logo-check {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  color: var(--amber);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.logo-card.on .logo-check {
+  opacity: 1;
+}
+
+.logo-custom-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--panel-2);
+  border: 1px dashed var(--hairline);
+  border-radius: 8px;
+  margin-top: 4px;
+}
+.logo-custom-panel.is-active {
+  border-color: var(--amber);
+  border-style: solid;
+  background: rgba(168, 112, 63, .06);
+}
+.logo-custom-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-custom-preview {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid var(--hairline);
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.logo-custom-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.logo-custom-text .title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.logo-custom-text .desc {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+.logo-custom-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+

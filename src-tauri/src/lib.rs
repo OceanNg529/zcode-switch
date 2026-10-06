@@ -910,6 +910,20 @@ async fn set_theme(app: AppHandle, theme: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn set_app_logo(app: AppHandle, logo: String) -> Result<(), String> {
+    {
+        let _guard = store_guard();
+        let paths = Paths::detect();
+        let mut s = load_settings(&paths);
+        s.app_logo = Some(logo.clone());
+        save_settings(&paths, &s)?;
+    }
+    let _ = app.emit("logo-changed", logo);
+    let _ = app.emit("state-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
 async fn reveal_main(app: AppHandle) -> Result<(), String> {
     let win = app.get_webview_window("main").ok_or_else(|| i18n::tr("err.main.missing"))?;
     win.show().map_err(|e| e.to_string())?;
@@ -1175,6 +1189,7 @@ pub fn run() {
             set_behavior,
             set_language,
             set_theme,
+            set_app_logo,
             autostart_status,
             autostart_set,
             export_pick_path,
