@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { esc, toast, openPwModal, openConfirmModal, openProviderModal, installDelegation, dismissSplash } from "./ui.js";
 import { ic } from "./icons.js";
-import { renderLogo, processMacAppIcon } from "./logo.js";
+import { renderLogo, processMacAppIcon, DEFAULT_LOGO_URL } from "./logo.js";
 import { init, t, has, lang, localeTag, stripErr } from "./i18n.js";
 
 const $app = document.getElementById("app");
@@ -981,6 +981,8 @@ listen("logo-changed", (e) => {
         localStorage.removeItem("zcode_app_logo");
       }
     } catch (_) {}
+    const splashImg = document.getElementById("splash-img");
+    if (splashImg) splashImg.src = (e.payload && e.payload !== "default") ? e.payload : DEFAULT_LOGO_URL;
     if (!uiLocked()) render();
   }
 });
