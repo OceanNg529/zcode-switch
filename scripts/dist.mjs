@@ -29,28 +29,59 @@ try {
   fail("构建失败（若是 os error 32：旧实例还在托盘驻留锁住了 exe，退出后重试）");
 }
 
-const bundleDir = join(root, "src-tauri/target/release/bundle/nsis");
-if (!existsSync(bundleDir)) fail(`找不到打包目录：${bundleDir}`);
-const setups = readdirSync(bundleDir)
-  .filter((f) => f.endsWith("-setup.exe"))
-  .map((f) => ({ f, t: statSync(join(bundleDir, f)).mtimeMs }))
-  .sort((a, b) => b.t - a.t);
-if (!setups.length) fail("bundle/nsis 下没有 *-setup.exe");
-const setup = setups[0].f;
-if (!setup.includes(`_${ver}_`)) {
-  fail(`最新安装包 ${setup} 不含当前版本 ${ver} —— 本次构建可能未产出 NSIS 包，请检查上方构建日志`);
-}
-
-const rawExe = join(root, "src-tauri/target/release/zcode-switch.exe");
-if (!existsSync(rawExe)) fail(`找不到裸 exe：${rawExe}`);
-
 const outDir = join(root, "release");
 mkdirSync(outDir, { recursive: true });
-const setupDst = join(outDir, setup);
-const portableDst = join(outDir, `zcode-switch_${ver}_portable.exe`);
-copyFileSync(join(bundleDir, setup), setupDst);
-copyFileSync(rawExe, portableDst);
 
-console.log(`[dist] ✓ 安装包  ${setup}  (${mb(setupDst)} MB)`);
-console.log(`[dist] ✓ 便携版  ${basename(portableDst)}  (${mb(portableDst)} MB)`);
-console.log(`[dist] 完成 → ${outDir}`);
+if (process.platform === "darwin") {
+  const dmgDir = join(root, "src-tauri/target/release/bundle/dmg");
+  const macosDir = join(root, "src-tauri/target/release/bundle/macos");
+  let found = false;
+  if (existsSync(dmgDir)) {
+    const dmgs = readdirSync(dmgDir).filter((f) => f.endsWith(".dmg"));
+    for (const dmg of dmgs) {
+      const src = join(dmgDir, dmg);
+      const dst = join(outDir, dmg);
+      copyFileSync(src, dst);
+      console.log(`[dist] ✓ macOS 安装镜像包：${dmg} (${mb(dst)} MB)`);
+      found = true;
+    }
+  }
+  if (existsSync(macosDir)) {
+    const apps = readdirSync(macosDir).filter((f) => f.endsWith(".app"));
+    for (const app of apps) {
+      const src = join(macosDir, app);
+      console.log(`[dist] ✓ macOS 应用程序包：${src}`);
+      found = true;
+    }
+  }
+  if (!found) {
+    fail("未能产出 macOS bundle (.dmg 或 .app)，请检查上方构建日志");
+  }
+  console.log(`[dist] 完成 → ${outDir}`);
+} else if (process.platform === "win32") {
+  const bundleDir = join(root, "src-tauri/target/release/bundle/nsis");
+  if (!existsSync(bundleDir)) fail(`找不到打包目录：${bundleDir}`);
+  const setups = readdirSync(bundleDir)
+    .filter((f) => f.endsWith("-setup.exe"))
+    .map((f) => ({ f, t: statSync(join(bundleDir, f)).mtimeMs }))
+    .sort((a, b) => b.t - a.t);
+  if (!setups.length) fail("bundle/nsis 下没有 *-setup.exe");
+  const setup = setups[0].f;
+  if (!setup.includes(`_${ver}_`)) {
+    fail(`最新安装包 ${setup} 不含当前版本 ${ver} —— 本次构建可能未产出 NSIS 包，请检查上方构建日志`);
+  }
+
+  const rawExe = join(root, "src-tauri/target/release/zcode-switch.exe");
+  if (!existsSync(rawExe)) fail(`找不到裸 exe：${rawExe}`);
+
+  const setupDst = join(outDir, setup);
+  const portableDst = join(outDir, `zcode-switch_${ver}_portable.exe`);
+  copyFileSync(join(bundleDir, setup), setupDst);
+  copyFileSync(rawExe, portableDst);
+
+  console.log(`[dist] ✓ 安装包  ${setup}  (${mb(setupDst)} MB)`);
+  console.log(`[dist] ✓ 便携版  ${basename(portableDst)}  (${mb(portableDst)} MB)`);
+  console.log(`[dist] 完成 → ${outDir}`);
+} else {
+  console.log(`[dist] 完成，产物位于 src-tauri/target/release/bundle/`);
+}
