@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Z·SWITCH</title>
     <style>
-      html, body { background: var(--bg, #faf3e9); }
+      html, body {
+        background: var(--bg, #faf3e9);
+        overflow-x: hidden;
+        overscroll-behavior: none;
+        overscroll-behavior-x: none;
+      }
       #splash {
         position: fixed; inset: 0; z-index: 999;
         background: var(--bg, #faf3e9);
