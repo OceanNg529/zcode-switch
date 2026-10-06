@@ -114,6 +114,9 @@ const actions = {
         if (typeof dataUrl === "string") {
           await guard(async () => {
             await invoke("set_app_logo", { logo: dataUrl });
+            try { localStorage.setItem("zcode_app_logo", dataUrl); } catch (_) {}
+            const splashImg = document.getElementById("splash-img");
+            if (splashImg) splashImg.src = dataUrl;
             toast(t("s.logoUploadToast"));
             await refresh(); render();
           });
@@ -127,6 +130,7 @@ const actions = {
   async resetLogo() {
     await guard(async () => {
       await invoke("set_app_logo", { logo: "default" });
+      try { localStorage.removeItem("zcode_app_logo"); } catch (_) {}
       toast(t("s.logoResetToast"));
       await refresh(); render();
     });
@@ -371,6 +375,13 @@ listen("theme-changed", (e) => {
 listen("logo-changed", (e) => {
   if (state && e.payload) {
     state.app_logo = e.payload;
+    try {
+      if (e.payload && e.payload !== "default") {
+        localStorage.setItem("zcode_app_logo", e.payload);
+      } else {
+        localStorage.removeItem("zcode_app_logo");
+      }
+    } catch (_) {}
     render();
   }
 });
@@ -379,6 +390,15 @@ listen("logo-changed", (e) => {
   try {
     appVer = await invoke("app_version").catch(() => "");
     await refresh();
+    if (state?.app_logo) {
+      try {
+        if (state.app_logo !== "default") {
+          localStorage.setItem("zcode_app_logo", state.app_logo);
+        } else {
+          localStorage.removeItem("zcode_app_logo");
+        }
+      } catch (_) {}
+    }
     render();
     dismissSplash();
   } catch (e) {

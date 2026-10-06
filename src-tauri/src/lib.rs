@@ -909,6 +909,72 @@ async fn set_theme(app: AppHandle, theme: String) -> Result<(), String> {
     Ok(())
 }
 
+fn decode_data_url_or_base64(raw: &str) -> Option<Vec<u8>> {
+    use base64::Engine;
+    let b64_str = if let Some(idx) = raw.find(";base64,") {
+        &raw[idx + 8..]
+    } else if let Some(idx) = raw.find(',') {
+        &raw[idx + 1..]
+    } else {
+        raw
+    };
+    base64::engine::general_purpose::STANDARD.decode(b64_str.trim()).ok()
+}
+
+#[cfg(target_os = "macos")]
+fn set_platform_dock_icon(png_bytes: Option<&[u8]>) {
+    use std::ffi::c_void;
+    #[link(name = "AppKit", kind = "framework")]
+    extern "C" {
+        fn objc_getClass(name: *const u8) -> *mut c_void;
+        fn sel_registerName(name: *const u8) -> *mut c_void;
+        fn objc_msgSend(receiver: *mut c_void, sel: *mut c_void, ...) -> *mut c_void;
+    }
+
+    unsafe {
+        let ns_app_cls = objc_getClass(b"NSApplication\0".as_ptr());
+        if ns_app_cls.is_null() {
+            return;
+        }
+        let shared_app_sel = sel_registerName(b"sharedApplication\0".as_ptr());
+        let set_app_icon_sel = sel_registerName(b"setApplicationIconImage:\0".as_ptr());
+        let app_inst = objc_msgSend(ns_app_cls, shared_app_sel);
+        if app_inst.is_null() {
+            return;
+        }
+
+        match png_bytes {
+            Some(bytes) => {
+                let ns_data_cls = objc_getClass(b"NSData\0".as_ptr());
+                let data_with_bytes_sel = sel_registerName(b"dataWithBytes:length:\0".as_ptr());
+                let data_obj = objc_msgSend(ns_data_cls, data_with_bytes_sel, bytes.as_ptr(), bytes.len());
+
+                let ns_image_cls = objc_getClass(b"NSImage\0".as_ptr());
+                let alloc_sel = sel_registerName(b"alloc\0".as_ptr());
+                let init_with_data_sel = sel_registerName(b"initWithData:\0".as_ptr());
+                let img_alloc = objc_msgSend(ns_image_cls, alloc_sel);
+                let img_obj = objc_msgSend(img_alloc, init_with_data_sel, data_obj);
+
+                let _ = objc_msgSend(app_inst, set_app_icon_sel, img_obj);
+            }
+            None => {
+                let _ = objc_msgSend(app_inst, set_app_icon_sel, std::ptr::null_mut::<c_void>());
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_platform_dock_icon(_png_bytes: Option<&[u8]>) {}
+
+fn apply_dock_icon(logo: &str) {
+    if logo.is_empty() || logo == "default" {
+        set_platform_dock_icon(None);
+    } else if let Some(bytes) = decode_data_url_or_base64(logo) {
+        set_platform_dock_icon(Some(&bytes));
+    }
+}
+
 #[tauri::command]
 async fn set_app_logo(app: AppHandle, logo: String) -> Result<(), String> {
     {
@@ -918,6 +984,7 @@ async fn set_app_logo(app: AppHandle, logo: String) -> Result<(), String> {
         s.app_logo = Some(logo.clone());
         save_settings(&paths, &s)?;
     }
+    apply_dock_icon(&logo);
     let _ = app.emit("logo-changed", logo);
     let _ = app.emit("state-changed", ());
     Ok(())
@@ -1222,6 +1289,9 @@ pub fn run() {
         .setup(|app| {
             let settings = store::load_settings(&Paths::detect());
             i18n::init_from_settings(&settings);
+            if let Some(logo_str) = settings.app_logo.as_deref() {
+                apply_dock_icon(logo_str);
+            }
             if let Some(main_win) = app.get_webview_window("main") {
                 let target_theme = match settings.theme() {
                     "light" => Some(tauri::Theme::Light),

@@ -974,6 +974,13 @@ listen("theme-changed", (e) => {
 listen("logo-changed", (e) => {
   if (state && e.payload) {
     state.app_logo = e.payload;
+    try {
+      if (e.payload !== "default") {
+        localStorage.setItem("zcode_app_logo", e.payload);
+      } else {
+        localStorage.removeItem("zcode_app_logo");
+      }
+    } catch (_) {}
     if (!uiLocked()) render();
   }
 });
@@ -1018,6 +1025,12 @@ async function sweepTick() {
   try {
     appVer = await invoke("app_version").catch(() => "");
     await refresh();
+    if (state?.app_logo) {
+      try {
+        if (state.app_logo !== "default") localStorage.setItem("zcode_app_logo", state.app_logo);
+        else localStorage.removeItem("zcode_app_logo");
+      } catch (_) {}
+    }
     render();
     await invoke("reveal_main");
     setTimeout(dismissSplash, 350);
@@ -1028,6 +1041,12 @@ async function sweepTick() {
         state = s;
         if (s?.language) init(s.language);
         if (s?.theme) applyTheme(s.theme);
+        if (s?.app_logo) {
+          try {
+            if (s.app_logo !== "default") localStorage.setItem("zcode_app_logo", s.app_logo);
+            else localStorage.removeItem("zcode_app_logo");
+          } catch (_) {}
+        }
         enrollAccounts();
         if (!uiLocked()) render();
       }).catch(() => {});
