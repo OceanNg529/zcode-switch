@@ -32,8 +32,8 @@ let outputPath = CommandLine.arguments[2]
 guard let inputImage = NSImage(contentsOfFile: inputPath) else { exit(1) }
 
 let canvasSize: CGFloat = 1024
-let targetSize: CGFloat = 1024
-let origin: CGFloat = 0
+let targetSize: CGFloat = 944
+let origin: CGFloat = 40
 let cornerRadius = targetSize * 0.224
 
 let rep = NSBitmapImageRep(
