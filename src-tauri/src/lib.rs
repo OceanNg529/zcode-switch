@@ -967,9 +967,11 @@ fn set_platform_dock_icon(png_bytes: Option<&[u8]>) {
 #[cfg(not(target_os = "macos"))]
 fn set_platform_dock_icon(_png_bytes: Option<&[u8]>) {}
 
+const DEFAULT_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
+
 fn apply_dock_icon(logo: &str) {
     if logo.is_empty() || logo == "default" {
-        set_platform_dock_icon(None);
+        set_platform_dock_icon(Some(DEFAULT_ICON_PNG));
     } else if let Some(bytes) = decode_data_url_or_base64(logo) {
         set_platform_dock_icon(Some(&bytes));
     }
@@ -1291,6 +1293,8 @@ pub fn run() {
             i18n::init_from_settings(&settings);
             if let Some(logo_str) = settings.app_logo.as_deref() {
                 apply_dock_icon(logo_str);
+            } else {
+                set_platform_dock_icon(Some(DEFAULT_ICON_PNG));
             }
             if let Some(main_win) = app.get_webview_window("main") {
                 let target_theme = match settings.theme() {
