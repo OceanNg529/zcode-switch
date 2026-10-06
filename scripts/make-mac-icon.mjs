@@ -32,10 +32,33 @@ let outputPath = CommandLine.arguments[2]
 guard let inputImage = NSImage(contentsOfFile: inputPath) else { exit(1) }
 
 let canvasSize: CGFloat = 1024
-let targetSize: CGFloat = 944
-let origin: CGFloat = 40
-let cornerRadius = targetSize * 0.224
+let targetSize: CGFloat = 824
+let origin: CGFloat = 100
+let cornerRadius: CGFloat = 185
 
+// 1. 离屏绘制 824x824 圆角卡片
+let cardSize = NSSize(width: targetSize, height: targetSize)
+let cardImage = NSImage(size: cardSize)
+cardImage.lockFocus()
+
+let localRect = NSRect(origin: .zero, size: cardSize)
+let localPath = NSBezierPath(roundedRect: localRect, xRadius: cornerRadius, yRadius: cornerRadius)
+localPath.addClip()
+
+let srcSize = inputImage.size
+let aspect = srcSize.width / srcSize.height
+var drawRect = localRect
+if aspect > 1 {
+    drawRect.size.width = targetSize * aspect
+    drawRect.origin.x = -(drawRect.size.width - targetSize) / 2
+} else {
+    drawRect.size.height = targetSize / aspect
+    drawRect.origin.y = -(drawRect.size.height - targetSize) / 2
+}
+inputImage.draw(in: drawRect)
+cardImage.unlockFocus()
+
+// 2. 将圆角卡片带柔和环境投影绘制到 1024x1024 画布
 let rep = NSBitmapImageRep(
     bitmapDataPlanes: nil,
     pixelsWide: Int(canvasSize),
@@ -53,22 +76,13 @@ NSGraphicsContext.saveGraphicsState()
 let context = NSGraphicsContext(bitmapImageRep: rep)
 NSGraphicsContext.current = context
 
-let rect = NSRect(x: origin, y: origin, width: targetSize, height: targetSize)
-let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
-path.addClip()
+let shadow = NSShadow()
+shadow.shadowColor = NSColor.black.withAlphaComponent(0.24)
+shadow.shadowOffset = NSSize(width: 0, height: -12)
+shadow.shadowBlurRadius = 24
+shadow.set()
 
-let srcSize = inputImage.size
-let aspect = srcSize.width / srcSize.height
-var drawRect = rect
-if aspect > 1 {
-    drawRect.size.width = targetSize * aspect
-    drawRect.origin.x = origin - (drawRect.size.width - targetSize) / 2
-} else {
-    drawRect.size.height = targetSize / aspect
-    drawRect.origin.y = origin - (drawRect.size.height - targetSize) / 2
-}
-inputImage.draw(in: drawRect)
-
+cardImage.draw(in: NSRect(x: origin, y: origin, width: targetSize, height: targetSize))
 NSGraphicsContext.restoreGraphicsState()
 
 if let pngData = rep.representation(using: .png, properties: [:]) {
