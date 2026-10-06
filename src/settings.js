@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { esc, toast, openPwModal, installDelegation, dismissSplash } from "./ui.js";
 import { ic } from "./icons.js";
-import { LOGO_PRESETS, renderLogo } from "./logo.js";
+import { renderLogo } from "./logo.js";
 import { init, t, lang, stripErr } from "./i18n.js";
 
 const $app = document.getElementById("app");
@@ -93,17 +93,6 @@ const actions = {
       const item = [...MODES, ...PALETTES].find(tItem => tItem.id === th);
       const name = item ? t(item.labelKey) : th;
       toast(t("s.themeToast", { name }));
-      await refresh(); render();
-    });
-  },
-
-  async setLogo(id) {
-    if (!id || id === state?.app_logo) return;
-    await guard(async () => {
-      await invoke("set_app_logo", { logo: id });
-      const item = LOGO_PRESETS.find(p => p.id === id);
-      const name = item ? (lang() === "zh" ? item.nameZh : item.nameEn) : id;
-      toast(t("s.logoToast", { name }));
       await refresh(); render();
     });
   },
@@ -296,38 +285,21 @@ const themeSeg = (cur) => `
 const logoSeg = (curLogo) => {
   const isCustom = curLogo && (curLogo.startsWith("data:") || curLogo.startsWith("http") || curLogo.startsWith("blob:"));
   return `
-    <div class="theme-section logo-section">
+    <div class="theme-section">
       <label style="margin-top:10px">${t("s.logoLabel")}</label>
-      <div class="logo-grid" role="radiogroup" aria-label="${t("s.logoLabel")}">
-        ${LOGO_PRESETS.map((p) => {
-          const active = !isCustom && (curLogo === p.id || (!curLogo && p.id === "default"));
-          const name = lang() === "zh" ? p.nameZh : p.nameEn;
-          const desc = lang() === "zh" ? p.descZh : p.descEn;
-          return `
-            <button class="logo-card${active ? " on" : ""}" role="radio" aria-checked="${active}" click="actions.setLogo('${p.id}')">
-              <span class="logo-check">${ic("check", 12)}</span>
-              <div class="logo-card-icon">${p.render(28)}</div>
-              <div class="logo-card-title">${name}</div>
-              <div class="logo-card-desc">${desc}</div>
-            </button>`;
-        }).join("")}
-      </div>
-
       <div class="logo-custom-panel${isCustom ? " is-active" : ""}">
         <div class="logo-custom-left">
           <div class="logo-custom-preview">
-            ${isCustom
-              ? `<img src="${curLogo}" alt="Custom Logo" />`
-              : renderLogo("default", 24)}
+            ${renderLogo(curLogo, 26)}
           </div>
           <div class="logo-custom-text">
-            <div class="title">${t("s.logoCustomTitle")}</div>
-            <div class="desc">${t("s.logoCustomDesc")}</div>
+            <div class="title">${isCustom ? t("s.logoCustomActive") : t("s.logoDefaultActive")}</div>
+            <div class="desc">${t("s.logoDesc")}</div>
           </div>
         </div>
         <div class="logo-custom-actions">
-          <button class="btn-ghost" click="actions.uploadLogo()">${t("s.logoUploadBtn")}</button>
-          ${isCustom ? `<button class="btn-ghost" click="actions.resetLogo()">${t("s.logoResetBtn")}</button>` : ""}
+          <button class="btn-ghost" click="actions.uploadLogo()">${isCustom ? t("s.logoChangeBtn") : t("s.logoUploadBtn")}</button>
+          <button class="btn-ghost" click="actions.resetLogo()" ${isCustom ? "" : "disabled"}>${t("s.logoResetBtn")}</button>
         </div>
       </div>
     </div>`;
