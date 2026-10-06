@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { esc, toast, openPwModal, installDelegation, dismissSplash } from "./ui.js";
 import { ic } from "./icons.js";
-import { renderLogo } from "./logo.js";
+import { renderLogo, processMacAppIcon } from "./logo.js";
 import { init, t, lang, stripErr } from "./i18n.js";
 
 const $app = document.getElementById("app");
@@ -110,9 +110,10 @@ const actions = {
       }
       const reader = new FileReader();
       reader.onload = async () => {
-        const dataUrl = reader.result;
-        if (typeof dataUrl === "string") {
+        const rawDataUrl = reader.result;
+        if (typeof rawDataUrl === "string") {
           await guard(async () => {
+            const dataUrl = await processMacAppIcon(rawDataUrl);
             await invoke("set_app_logo", { logo: dataUrl });
             try { localStorage.setItem("zcode_app_logo", dataUrl); } catch (_) {}
             const splashImg = document.getElementById("splash-img");

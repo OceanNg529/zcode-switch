@@ -30,3 +30,63 @@ export function renderLogo(logoKey, size = 20, cls = "") {
     </svg>
   </span>`;
 }
+
+/**
+ * 将用户上传的任意图片自动处理为符合 macOS 规范的 Squircle 连续圆角矩形图标
+ * - 规格：1024x1024 画布，824x824 主体居中（四周留约 10% 呼吸留白边距，与原生 App 视觉对齐）
+ * - 圆角半径：185px（标准连续圆角）
+ */
+export function processMacAppIcon(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1024;
+      canvas.height = 1024;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(dataUrl);
+
+      const size = 824;
+      const x = (1024 - size) / 2;
+      const y = (1024 - size) / 2;
+      const r = Math.round(size * 0.224); // 约 185px
+
+      ctx.clearRect(0, 0, 1024, 1024);
+
+      // 绘制 macOS 标准圆角并裁剪
+      ctx.save();
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(x, y, size, size, r);
+      } else {
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + size, y, x + size, y + size, r);
+        ctx.arcTo(x + size, y + size, x, y + size, r);
+        ctx.arcTo(x, y + size, x, y, r);
+        ctx.arcTo(x, y, x + size, y, r);
+        ctx.closePath();
+      }
+      ctx.clip();
+
+      const aspectImg = img.width / img.height;
+      let drawW = size;
+      let drawH = size;
+      let drawX = x;
+      let drawY = y;
+      if (aspectImg > 1) {
+        drawW = size * aspectImg;
+        drawX = x - (drawW - size) / 2;
+      } else {
+        drawH = size / aspectImg;
+        drawY = y - (drawH - size) / 2;
+      }
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      ctx.restore();
+
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
