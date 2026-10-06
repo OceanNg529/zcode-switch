@@ -977,6 +977,99 @@ fn apply_dock_icon(logo: &str) {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn update_app_bundle_icon(logo: &str) {
+    use std::ffi::c_void;
+    #[link(name = "AppKit", kind = "framework")]
+    extern "C" {
+        fn objc_getClass(name: *const u8) -> *mut c_void;
+        fn sel_registerName(name: *const u8) -> *mut c_void;
+        fn objc_msgSend(receiver: *mut c_void, sel: *mut c_void, ...) -> *mut c_void;
+    }
+
+    let png_bytes = if logo.is_empty() || logo == "default" {
+        None
+    } else {
+        decode_data_url_or_base64(logo)
+    };
+
+    unsafe {
+        let ns_bundle_cls = objc_getClass(b"NSBundle\0".as_ptr());
+        if ns_bundle_cls.is_null() { return; }
+        let main_bundle_sel = sel_registerName(b"mainBundle\0".as_ptr());
+        let main_bundle = objc_msgSend(ns_bundle_cls, main_bundle_sel);
+        if main_bundle.is_null() { return; }
+        let bundle_path_sel = sel_registerName(b"bundlePath\0".as_ptr());
+        let bundle_path = objc_msgSend(main_bundle, bundle_path_sel);
+        if bundle_path.is_null() { return; }
+
+        let ns_workspace_cls = objc_getClass(b"NSWorkspace\0".as_ptr());
+        if ns_workspace_cls.is_null() { return; }
+        let shared_ws_sel = sel_registerName(b"sharedWorkspace\0".as_ptr());
+        let ws_inst = objc_msgSend(ns_workspace_cls, shared_ws_sel);
+        if ws_inst.is_null() { return; }
+
+        let set_icon_sel = sel_registerName(b"setIcon:forFile:options:\0".as_ptr());
+
+        if let Some(bytes) = png_bytes {
+            let ns_data_cls = objc_getClass(b"NSData\0".as_ptr());
+            let data_with_bytes_sel = sel_registerName(b"dataWithBytes:length:\0".as_ptr());
+            let data_obj = objc_msgSend(ns_data_cls, data_with_bytes_sel, bytes.as_ptr(), bytes.len());
+
+            let ns_image_cls = objc_getClass(b"NSImage\0".as_ptr());
+            let alloc_sel = sel_registerName(b"alloc\0".as_ptr());
+            let init_with_data_sel = sel_registerName(b"initWithData:\0".as_ptr());
+            let img_alloc = objc_msgSend(ns_image_cls, alloc_sel);
+            let img_obj = objc_msgSend(img_alloc, init_with_data_sel, data_obj);
+
+            let _ = objc_msgSend(ws_inst, set_icon_sel, img_obj, bundle_path, 0usize);
+        } else {
+            let _ = objc_msgSend(ws_inst, set_icon_sel, std::ptr::null_mut::<c_void>(), bundle_path, 0usize);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn update_app_bundle_icon(_logo: &str) {}
+
+fn apply_tray_icon(app: &AppHandle, logo: &str) {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
+    let png_bytes = if logo.is_empty() || logo == "default" {
+        Some(DEFAULT_ICON_PNG.to_vec())
+    } else {
+        decode_data_url_or_base64(logo)
+    };
+    if let Some(bytes) = png_bytes {
+        if let Ok(img) = tauri::image::Image::from_bytes(&bytes) {
+            let _ = tray.set_icon(Some(img));
+        }
+    }
+}
+
+#[tauri::command]
+async fn pick_logo_file(app: AppHandle) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("Images", &["png", "jpg", "jpeg", "webp", "svg", "icns", "ico"])
+        .blocking_pick_file();
+    let Some(fp) = picked else {
+        return Ok(None);
+    };
+    let path = fp.into_path().map_err(|e| e.to_string())?;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    let mime = match ext.as_str() {
+        "svg" => "image/svg+xml",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        _ => "image/png",
+    };
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+    Ok(Some(format!("data:{mime};base64,{b64}")))
+}
+
 #[tauri::command]
 async fn set_app_logo(app: AppHandle, logo: String) -> Result<(), String> {
     {
@@ -987,6 +1080,8 @@ async fn set_app_logo(app: AppHandle, logo: String) -> Result<(), String> {
         save_settings(&paths, &s)?;
     }
     apply_dock_icon(&logo);
+    apply_tray_icon(&app, &logo);
+    update_app_bundle_icon(&logo);
     let _ = app.emit("logo-changed", logo);
     let _ = app.emit("state-changed", ());
     Ok(())
@@ -1259,6 +1354,7 @@ pub fn run() {
             set_language,
             set_theme,
             set_app_logo,
+            pick_logo_file,
             autostart_status,
             autostart_set,
             export_pick_path,
@@ -1293,6 +1389,7 @@ pub fn run() {
             i18n::init_from_settings(&settings);
             if let Some(logo_str) = settings.app_logo.as_deref() {
                 apply_dock_icon(logo_str);
+                update_app_bundle_icon(logo_str);
             } else {
                 set_platform_dock_icon(Some(DEFAULT_ICON_PNG));
             }
@@ -1307,8 +1404,15 @@ pub fn run() {
             if let Ok(data_dir) = app.path().app_local_data_dir() {
                 flowlog::init(&data_dir);
             }
+            let tray_icon = if let Some(logo_str) = settings.app_logo.as_deref() {
+                decode_data_url_or_base64(logo_str)
+                    .and_then(|b| tauri::image::Image::from_bytes(&b).ok())
+                    .unwrap_or_else(|| app.default_window_icon().expect("no window icon").clone())
+            } else {
+                app.default_window_icon().expect("no window icon").clone()
+            };
             let _tray = TrayIconBuilder::with_id(TRAY_ID)
-                .icon(app.default_window_icon().expect("no window icon").clone())
+                .icon(tray_icon)
                 .tooltip("Z·SWITCH")
                 .menu(&tray_menu_inner(app.handle())?)
                 .show_menu_on_left_click(false)

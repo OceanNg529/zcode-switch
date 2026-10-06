@@ -98,6 +98,31 @@ const actions = {
   },
 
   async uploadLogo() {
+    let pickedDataUrl = null;
+    let nativeDialogSuccess = false;
+    try {
+      pickedDataUrl = await invoke("pick_logo_file");
+      nativeDialogSuccess = true;
+    } catch (e) {
+      console.warn("Native file dialog failed or unavailable, fallback to web input:", e);
+    }
+
+    // 原生系统对话框已响应
+    if (nativeDialogSuccess) {
+      if (!pickedDataUrl) return; // 用户取消选择
+      await guard(async () => {
+        const dataUrl = await processMacAppIcon(pickedDataUrl);
+        await invoke("set_app_logo", { logo: dataUrl });
+        try { localStorage.setItem("zcode_app_logo", dataUrl); } catch (_) {}
+        const splashImg = document.getElementById("splash-img");
+        if (splashImg) splashImg.src = dataUrl;
+        toast(t("s.logoUploadToast"));
+        await refresh(); render();
+      });
+      return;
+    }
+
+    // 浏览器环境降级兜底方案
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/png,image/jpeg,image/webp,image/svg+xml";
