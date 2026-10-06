@@ -1035,14 +1035,25 @@ fn update_app_bundle_icon(_logo: &str) {}
 fn apply_tray_icon(app: &AppHandle, logo: &str) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
     let png_bytes = if logo.is_empty() || logo == "default" {
-        Some(DEFAULT_ICON_PNG.to_vec())
-    } else {
-        decode_data_url_or_base64(logo)
-    };
-    if let Some(bytes) = png_bytes {
-        if let Ok(img) = tauri::image::Image::from_bytes(&bytes) {
-            let _ = tray.set_icon(Some(img));
+        include_bytes!("../icons/32x32.png").to_vec()
+    } else if let Some(b) = decode_data_url_or_base64(logo) {
+        // macOS 状态栏标准：按 22pt @2x 规范生成 44x44 高清下采样图，保持状态栏清晰协调
+        if let Ok(dyn_img) = image::load_from_memory(&b) {
+            let resized = dyn_img.resize_exact(44, 44, image::imageops::FilterType::Lanczos3);
+            let mut out = std::io::Cursor::new(Vec::new());
+            if resized.write_to(&mut out, image::ImageFormat::Png).is_ok() {
+                out.into_inner()
+            } else {
+                b
+            }
+        } else {
+            b
         }
+    } else {
+        include_bytes!("../icons/32x32.png").to_vec()
+    };
+    if let Ok(img) = tauri::image::Image::from_bytes(&png_bytes) {
+        let _ = tray.set_icon(Some(img));
     }
 }
 
@@ -1406,10 +1417,20 @@ pub fn run() {
             }
             let tray_icon = if let Some(logo_str) = settings.app_logo.as_deref() {
                 decode_data_url_or_base64(logo_str)
-                    .and_then(|b| tauri::image::Image::from_bytes(&b).ok())
-                    .unwrap_or_else(|| app.default_window_icon().expect("no window icon").clone())
+                    .and_then(|b| {
+                        if let Ok(dyn_img) = image::load_from_memory(&b) {
+                            let resized = dyn_img.resize_exact(44, 44, image::imageops::FilterType::Lanczos3);
+                            let pixels = resized.to_rgba8().into_raw();
+                            Some(tauri::image::Image::new_owned(pixels, 44, 44))
+                        } else {
+                            tauri::image::Image::from_bytes(&b).ok()
+                        }
+                    })
+                    .unwrap_or_else(|| {
+                        tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png")).expect("tray icon")
+                    })
             } else {
-                app.default_window_icon().expect("no window icon").clone()
+                tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png")).expect("tray icon")
             };
             let _tray = TrayIconBuilder::with_id(TRAY_ID)
                 .icon(tray_icon)
