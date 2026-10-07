@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { esc, toast, openPwModal, openConfirmModal, openProviderModal, installDelegation, dismissSplash } from "./ui.js";
 import { ic } from "./icons.js";
-import { renderLogo, processMacAppIcon, DEFAULT_LOGO_URL } from "./logo.js";
+import { renderLogo, DEFAULT_LOGO_URL } from "./logo.js";
 import { init, t, has, lang, localeTag, stripErr } from "./i18n.js";
 
 const $app = document.getElementById("app");
@@ -1031,14 +1031,6 @@ async function sweepTick() {
       try {
         if (state.app_logo !== "default") {
           localStorage.setItem("zcode_app_logo", state.app_logo);
-          processMacAppIcon(state.app_logo).then((rounded) => {
-            if (rounded && rounded !== state.app_logo) {
-              state.app_logo = rounded;
-              try { localStorage.setItem("zcode_app_logo", rounded); } catch (_) {}
-              invoke("set_app_logo", { logo: rounded }).catch(() => {});
-              if (!uiLocked()) render();
-            }
-          }).catch(() => {});
         } else {
           localStorage.removeItem("zcode_app_logo");
         }
