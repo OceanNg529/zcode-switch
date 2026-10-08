@@ -968,7 +968,6 @@ fn set_platform_dock_icon(png_bytes: Option<&[u8]>) {
 fn set_platform_dock_icon(_png_bytes: Option<&[u8]>) {}
 
 const DEFAULT_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
-const DEFAULT_TRAY_PNG: &[u8] = include_bytes!("../icons/tray.png");
 
 fn apply_dock_icon(logo: &str) {
     if logo.is_empty() || logo == "default" {
@@ -1035,27 +1034,26 @@ fn update_app_bundle_icon(_logo: &str) {}
 
 fn apply_tray_icon(app: &AppHandle, logo: &str) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else { return };
-    let (png_bytes, is_template) = if logo.is_empty() || logo == "default" {
-        (DEFAULT_TRAY_PNG.to_vec(), true)
+    let png_bytes = if logo.is_empty() || logo == "default" {
+        include_bytes!("../icons/32x32.png").to_vec()
     } else if let Some(b) = decode_data_url_or_base64(logo) {
         // macOS 状态栏标准：按 22pt @2x 规范生成 44x44 高清下采样图，保持状态栏清晰协调
         if let Ok(dyn_img) = image::load_from_memory(&b) {
             let resized = dyn_img.resize_exact(44, 44, image::imageops::FilterType::Lanczos3);
             let mut out = std::io::Cursor::new(Vec::new());
             if resized.write_to(&mut out, image::ImageFormat::Png).is_ok() {
-                (out.into_inner(), false)
+                out.into_inner()
             } else {
-                (b, false)
+                b
             }
         } else {
-            (b, false)
+            b
         }
     } else {
-        (DEFAULT_TRAY_PNG.to_vec(), true)
+        include_bytes!("../icons/32x32.png").to_vec()
     };
     if let Ok(img) = tauri::image::Image::from_bytes(&png_bytes) {
         let _ = tray.set_icon(Some(img));
-        let _ = tray.set_icon_as_template(is_template);
     }
 }
 
@@ -1417,10 +1415,8 @@ pub fn run() {
             if let Ok(data_dir) = app.path().app_local_data_dir() {
                 flowlog::init(&data_dir);
             }
-            let is_custom = settings.app_logo.as_deref().map(|s| !s.is_empty() && s != "default").unwrap_or(false);
-            let (tray_icon, is_template) = if is_custom {
-                let logo_str = settings.app_logo.as_deref().unwrap();
-                let icon_opt = decode_data_url_or_base64(logo_str)
+            let tray_icon = if let Some(logo_str) = settings.app_logo.as_deref() {
+                decode_data_url_or_base64(logo_str)
                     .and_then(|b| {
                         if let Ok(dyn_img) = image::load_from_memory(&b) {
                             let resized = dyn_img.resize_exact(44, 44, image::imageops::FilterType::Lanczos3);
@@ -1429,16 +1425,15 @@ pub fn run() {
                         } else {
                             tauri::image::Image::from_bytes(&b).ok()
                         }
-                    });
-                (icon_opt.unwrap_or_else(|| {
-                    tauri::image::Image::from_bytes(DEFAULT_TRAY_PNG).expect("tray icon")
-                }), false)
+                    })
+                    .unwrap_or_else(|| {
+                        tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png")).expect("tray icon")
+                    })
             } else {
-                (tauri::image::Image::from_bytes(DEFAULT_TRAY_PNG).expect("tray icon"), true)
+                tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png")).expect("tray icon")
             };
             let _tray = TrayIconBuilder::with_id(TRAY_ID)
                 .icon(tray_icon)
-                .icon_as_template(is_template)
                 .tooltip("Z·SWITCH")
                 .menu(&tray_menu_inner(app.handle())?)
                 .show_menu_on_left_click(false)
